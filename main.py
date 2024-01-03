@@ -8,6 +8,8 @@ from asyncio import run as asyncio_run, sleep
 from config import LIGHT_ADDRESS, LIGHT_MAC
 
 def decrypt_command(session: TelinkSession, command: bytes) -> bytes:
+    assert session.session_key
+    assert session.mac
     return telink_aes_ivm_decrypt(session.session_key, make_ivm(command[0] | (command[1] << 8) | (command[2] << 16), session.mac), command, plain_header_len=PLAIN_HEADER_LEN_COMMAND)
 
 def selftest():
