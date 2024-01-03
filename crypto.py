@@ -17,7 +17,7 @@ def pad_to_16(data: bytes) -> bytes:
     return pad_to_len(data, 16)
 
 def telink_aes_base_encrypt(key: bytes, data: bytes) -> bytes: # OK!
-    cipher = AES.new(key[::-1], AES.MODE_ECB)
+    cipher = AES.new(key[::-1], AES.MODE_ECB) # type: ignore[reportUnknownMemberType]
     return cipher.encrypt(data[::-1])
 
 def telink_aes_att_encrypt(key: bytes, data: bytes) -> bytes: # OK!
@@ -33,7 +33,7 @@ def telink_aes_ivm_decrypt(key: bytes, ivm: bytes, payload: bytes, plain_header_
     encrypted = telink_aes_att_encrypt(key, ivm_padded)
     for i in range(encrypted_len):
         payload_list[i + offset_after_check] ^= encrypted[i]
-    
+
     # Stage 1
     ivm_padded = pad_to_16(ivm + bytes([encrypted_len]))
     encrypted_list = list(telink_aes_att_encrypt(key, ivm_padded))
@@ -89,7 +89,7 @@ def derive_session_key(login_random: bytes, login_response: bytes) -> bytes: # O
     encrypt_check = telink_aes_base_encrypt(padded_device_random, mesh_xor)
     assert encrypt_check[8:16][::-1] == resp_data[8:16]
 
-    session_key_base = login_random + resp_data[:8] 
+    session_key_base = login_random + resp_data[:8]
     return telink_aes_base_encrypt(mesh_xor, session_key_base)[::-1]
 
 def make_ivm(sequence_number: int, mac: bytes) -> bytes: # OK!

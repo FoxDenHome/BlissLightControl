@@ -70,5 +70,6 @@
   "reportShadowedImports": "error",
   "reportUnusedCoroutine": "error",
   "strictParameterNoneValue": true,
+  "deprecateTypingAliases": true,
   "useLibraryCodeForTypes": true
 }

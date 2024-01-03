@@ -1,6 +1,7 @@
 
 from crypto import telink_aes_ivm_decrypt, telink_aes_ivm_encrypt, make_ivm, make_ivs, create_login, derive_session_key, pad_to_len
-from bleak import BleakClient, BleakGATTCharacteristic
+from bleak import BleakClient
+from bleak.backends.characteristic import BleakGATTCharacteristic
 from os import urandom
 
 PLAIN_HEADER_LEN_COMMAND = 3
@@ -24,6 +25,7 @@ class TelinkSession:
     vendor_id: int = 0x0211
 
     def __init__(self, address: str):
+        super().__init__()
         self.address = address
         self.sequence_number = 1337
 
@@ -32,26 +34,28 @@ class TelinkSession:
 
     async def connect(self):
         self.client = BleakClient(self.address, services=[SERVICE_UUID])
-        await self.client.connect()
-    
+        _ = await self.client.connect() # pyright: ignore[reportUnknownMemberType]
+
         login_random = urandom(8)
         login_packet = create_login(login_random)
 
         await self.client.write_gatt_char(CHARACTERISTIC_PAIR_UUID, login_packet)
-        login_response = await self.client.read_gatt_char(CHARACTERISTIC_PAIR_UUID)
-        
-        self.session_key = derive_session_key(login_random, login_response)
+        login_response = await self.client.read_gatt_char(CHARACTERISTIC_PAIR_UUID) # pyright: ignore[reportUnknownMemberType]
+
+        self.session_key = derive_session_key(login_random, bytes(login_response))
 
     def ready(self) -> bool:
         return self.mesh_address != 65535
 
     async def enable_notify(self):
-        await self.client.start_notify(CHARACTERISTIC_NOTIFY_UUID, lambda *args, **kwargs: self.handle_notify(*args, **kwargs))
+        assert self.client
+
+        await self.client.start_notify(CHARACTERISTIC_NOTIFY_UUID, lambda char, bytes: self.handle_notify(char, bytes)) # pyright: ignore[reportUnknownMemberType]
         await self.client.write_gatt_char(CHARACTERISTIC_NOTIFY_UUID, b"\x01", response=True)
         await self.send_command(COMMAND_FIND_MESH, b"", response=False)
 
     def handle_notify(self, sender: BleakGATTCharacteristic, data: bytearray):
-        decrypted = self._decrypt_notify(data)
+        decrypted = self._decrypt_notify(bytes(data))
         if len(decrypted) < 20:
             return
 
@@ -62,9 +66,13 @@ class TelinkSession:
         print("NE", notify_extra.hex())
 
     def _decrypt_notify(self, notify: bytes) -> bytes:
+        assert self.session_key
+        assert self.mac
         return telink_aes_ivm_decrypt(self.session_key, make_ivs(self.mac, notify), notify, plain_header_len=PLAIN_HEADER_LEN_NOTIFY)
 
-    def _encrypt_command(self, command: int, payload: bytes, mesh_address: int) -> bytes:
+    def _encrypt_command(self, command: int, payload: bytes, mesh_address: int | None = None) -> bytes:
+        assert self.session_key
+        assert self.mac
         assert len(payload) <= 10
         payload = pad_to_len(payload, 10)
 
@@ -89,5 +97,6 @@ class TelinkSession:
 
         return telink_aes_ivm_encrypt(self.session_key, make_ivm(sequence_number, self.mac), ble_data, plain_header_len=PLAIN_HEADER_LEN_COMMAND)
 
-    async def send_command(self, command: int, payload: bytes, response: bool, mesh_address: int = None):
-        await self.client.write_gatt_char(CHARACTERISTIC_COMMAND_UUID, data=self._encrypt_command(command=command, payload=payload, mesh_address=mesh_address), response=response)
+    async def send_command(self, command: int, payload: bytes, response: bool):
+        assert self.client
+        await self.client.write_gatt_char(CHARACTERISTIC_COMMAND_UUID, data=self._encrypt_command(command=command, payload=payload), response=response)
