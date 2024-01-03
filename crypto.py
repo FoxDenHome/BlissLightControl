@@ -1,18 +1,17 @@
 from Cryptodome.Cipher import AES
-from config import LIGHT_MAC, MESH_NAME, MESH_PASSWORD
+from config import MESH_NAME, MESH_PASSWORD
 
 BLE_GATT_OP_PAIR_ENC_REQ = b"\x0C"
 BLE_GATT_OP_PAIR_ENC_RSP = b"\x0D"
 BLE_GATT_OP_PAIR_ENC_FAIL = b"\x0E"
 
-LIGHT_MAC_REVERSED = LIGHT_MAC[::-1]
-
 sequence_number_counter = 0
 
-PLAIN_HEADER_LEN_NOTIFY = 5
-
-def pad_to_len(data: bytes, len: int) -> bytes:
-    return (data + b"\0"*len)[:len]
+def pad_to_len(data: bytes, pad_to: int) -> bytes:
+    assert len(data) <= pad_to
+    if len(data) == pad_to:
+        return data
+    return (data + b"\0"*pad_to)[:pad_to]
 
 def pad_to_16(data: bytes) -> bytes:
     return pad_to_len(data, 16)
@@ -93,8 +92,8 @@ def derive_session_key(login_random: bytes, login_response: bytes) -> bytes: # O
     session_key_base = login_random + resp_data[:8] 
     return telink_aes_base_encrypt(mesh_xor, session_key_base)[::-1]
 
-def make_ivm(sequence_number: int) -> bytes: # OK!
-    return LIGHT_MAC_REVERSED[:4] + bytes([1, sequence_number & 0xff, (sequence_number >> 8) & 0xff, (sequence_number >> 16) & 0xff])
+def make_ivm(sequence_number: int, mac: bytes) -> bytes: # OK!
+    return mac[::-1][:4] + bytes([1, sequence_number & 0xff, (sequence_number >> 8) & 0xff, (sequence_number >> 16) & 0xff])
 
-def make_ivs() -> bytes: # OK!
-    return pad_to_len(LIGHT_MAC_REVERSED[:3], 8)
+def make_ivs(mac: bytes, data: bytes) -> bytes: # OK!
+    return mac[::-1][:3] + data[:5]
