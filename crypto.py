@@ -9,7 +9,7 @@ sequence_number_counter = 0
 
 def pad_to_len(data: bytes, pad_to: int) -> bytes:
     if len(data) > pad_to:
-        raise ValueError('data length exceeds padding length')
+        raise ValueError('Data length exceeds padding length')
     if len(data) == pad_to:
         return data
     return (data + b"\0"*pad_to)[:pad_to]
@@ -43,7 +43,7 @@ def telink_aes_ivm_decrypt(key: bytes, ivm: bytes, payload: bytes, plain_header_
     encrypted = telink_aes_att_encrypt(key, bytes(encrypted_list))
 
     if bytes(payload_list[plain_header_len:plain_header_len+2]) != encrypted[0:2]:
-      raise ValueError('Excepted encryption match')
+      raise ValueError('Encryption check mismatch')
 
     return bytes(payload_list)
 

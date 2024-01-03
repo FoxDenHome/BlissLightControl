@@ -106,7 +106,3 @@ class TelinkSessionConnector:
         session_key = derive_session_key(login_random, bytes(login_response))
 
         return TelinkSession(session_key, client, self.mac)
-
-
-
-
