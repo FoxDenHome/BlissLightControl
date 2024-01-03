@@ -11,7 +11,7 @@ class Light:
 
     # 9a4af31e314300f0
     # 1102440a0000000000000000
-        
+
     async def _send_command(self, payload: bytes, response: bool = False):
         await self.session.send_command(command=COMMAND_LIGHT_CONTROL, payload=payload, response=response)
 

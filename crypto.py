@@ -8,7 +8,8 @@ BLE_GATT_OP_PAIR_ENC_FAIL = b"\x0E"
 sequence_number_counter = 0
 
 def pad_to_len(data: bytes, pad_to: int) -> bytes:
-    assert len(data) <= pad_to
+    if len(data) > pad_to:
+        raise ValueError('data length exceeds padding length')
     if len(data) == pad_to:
         return data
     return (data + b"\0"*pad_to)[:pad_to]
@@ -24,7 +25,7 @@ def telink_aes_att_encrypt(key: bytes, data: bytes) -> bytes: # OK!
     return telink_aes_base_encrypt(key, data)[::-1]
 
 def telink_aes_ivm_decrypt(key: bytes, ivm: bytes, payload: bytes, plain_header_len: int) -> bytes: # OK!
-    payload_list = list(payload)
+    payload_list = bytearray(payload)
     offset_after_check = plain_header_len + 2
     encrypted_len = len(payload) - offset_after_check
 
@@ -41,8 +42,8 @@ def telink_aes_ivm_decrypt(key: bytes, ivm: bytes, payload: bytes, plain_header_
         encrypted_list[i] ^= payload_list[i + offset_after_check]
     encrypted = telink_aes_att_encrypt(key, bytes(encrypted_list))
 
-    for i in range(2):
-        assert payload_list[i + plain_header_len] == encrypted[i]
+    if bytes(payload_list[plain_header_len:plain_header_len+2]) != encrypted[0:2]:
+      raise ValueError('Excepted encryption match')
 
     return bytes(payload_list)
 

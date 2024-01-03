@@ -15,40 +15,22 @@ CHARACTERISTIC_COMMAND_UUID = "00010203-0405-0607-0809-0a0b0c0d1912"
 CHARACTERISTIC_NOTIFY_UUID = "00010203-0405-0607-0809-0a0b0c0d1911"
 
 class TelinkSession:
-    address: str
-    mac: bytes | None = None
-    session_key: bytes | None = None
-    client: BleakClient | None = None
+    session_key: bytes
+    client: BleakClient
+    mac: bytes
     sequence_number: int
-
-    mesh_address: int = 65535
     vendor_id: int = 0x0211
+    mesh_address: int = 65535
 
-    def __init__(self, address: str):
+    def __init__(self, session_key: bytes, client: BleakClient, mac: bytes):
         super().__init__()
-        self.address = address
+        self.session_key = session_key
+        self.client = client
+        self.mac = mac
         self.sequence_number = 1337
 
-    def set_mac(self, mac: str):
-        self.mac = bytes.fromhex(mac.replace(":", "").replace(" ", ""))
-
-    async def connect(self):
-        self.client = BleakClient(self.address, services=[SERVICE_UUID])
-        _ = await self.client.connect() # pyright: ignore[reportUnknownMemberType]
-
-        login_random = urandom(8)
-        login_packet = create_login(login_random)
-
-        await self.client.write_gatt_char(CHARACTERISTIC_PAIR_UUID, login_packet)
-        login_response = await self.client.read_gatt_char(CHARACTERISTIC_PAIR_UUID) # pyright: ignore[reportUnknownMemberType]
-
-        self.session_key = derive_session_key(login_random, bytes(login_response))
-
-    def ready(self) -> bool:
-        return self.mesh_address != 65535
 
     async def enable_notify(self):
-        assert self.client
 
         await self.client.start_notify(CHARACTERISTIC_NOTIFY_UUID, lambda char, bytes: self.handle_notify(char, bytes)) # pyright: ignore[reportUnknownMemberType]
         await self.client.write_gatt_char(CHARACTERISTIC_NOTIFY_UUID, b"\x01", response=True)
@@ -65,15 +47,15 @@ class TelinkSession:
         notify_extra = decrypted[10:]
         print("NE", notify_extra.hex())
 
+    async def send_command(self, command: int, payload: bytes, response: bool):
+      await self.client.write_gatt_char(CHARACTERISTIC_COMMAND_UUID, data=self._encrypt_command(command=command, payload=payload), response=response)
+
     def _decrypt_notify(self, notify: bytes) -> bytes:
-        assert self.session_key
-        assert self.mac
         return telink_aes_ivm_decrypt(self.session_key, make_ivs(self.mac, notify), notify, plain_header_len=PLAIN_HEADER_LEN_NOTIFY)
 
     def _encrypt_command(self, command: int, payload: bytes, mesh_address: int | None = None) -> bytes:
-        assert self.session_key
-        assert self.mac
-        assert len(payload) <= 10
+        if len(payload) > 10:
+            raise ValueError('payload must be less than 10 bytes')
         payload = pad_to_len(payload, 10)
 
         if not mesh_address:
@@ -97,6 +79,34 @@ class TelinkSession:
 
         return telink_aes_ivm_encrypt(self.session_key, make_ivm(sequence_number, self.mac), ble_data, plain_header_len=PLAIN_HEADER_LEN_COMMAND)
 
-    async def send_command(self, command: int, payload: bytes, response: bool):
-        assert self.client
-        await self.client.write_gatt_char(CHARACTERISTIC_COMMAND_UUID, data=self._encrypt_command(command=command, payload=payload), response=response)
+    def ready(self) -> bool:
+        return self.mesh_address != 65535
+
+
+
+class TelinkSessionConnector:
+    address: str
+    mac: bytes
+
+    def __init__(self, address: str, mac: str):
+        super().__init__()
+        self.address = address
+        self.mac = bytes.fromhex(mac.replace(":", "").replace(" ", ""))
+
+    async def connect(self):
+        client = BleakClient(self.address, services=[SERVICE_UUID])
+        _ = await client.connect() # pyright: ignore[reportUnknownMemberType]
+
+        login_random = urandom(8)
+        login_packet = create_login(login_random)
+
+        await client.write_gatt_char(CHARACTERISTIC_PAIR_UUID, login_packet)
+        login_response = await client.read_gatt_char(CHARACTERISTIC_PAIR_UUID) # pyright: ignore[reportUnknownMemberType]
+
+        session_key = derive_session_key(login_random, bytes(login_response))
+
+        return TelinkSession(session_key, client, self.mac)
+
+
+
+
