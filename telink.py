@@ -6,6 +6,8 @@ from os import urandom
 PLAIN_HEADER_LEN_COMMAND = 3
 PLAIN_HEADER_LEN_NOTIFY = 5
 
+COMMAND_FIND_MESH = 0xE4
+
 SERVICE_UUID = "00010203-0405-0607-0809-0a0b0c0d1910"
 CHARACTERISTIC_PAIR_UUID = "00010203-0405-0607-0809-0a0b0c0d1914"
 CHARACTERISTIC_COMMAND_UUID = "00010203-0405-0607-0809-0a0b0c0d1912"
@@ -13,13 +15,13 @@ CHARACTERISTIC_NOTIFY_UUID = "00010203-0405-0607-0809-0a0b0c0d1911"
 
 class TelinkSession:
     address: str
-    mac: bytes
-    session_key: bytes
-    client: BleakClient
+    mac: bytes | None = None
+    session_key: bytes | None = None
+    client: BleakClient | None = None
     sequence_number: int
 
     mesh_address: int = 65535
-    vendor_id: int = 0x00e0
+    vendor_id: int = 0x0211
 
     def __init__(self, address: str):
         self.address = address
@@ -46,7 +48,7 @@ class TelinkSession:
     async def enable_notify(self):
         await self.client.start_notify(CHARACTERISTIC_NOTIFY_UUID, lambda *args, **kwargs: self.handle_notify(*args, **kwargs))
         await self.client.write_gatt_char(CHARACTERISTIC_NOTIFY_UUID, b"\x01", response=True)
-        await self.send_command(0xE4, b"", response=False)
+        await self.send_command(COMMAND_FIND_MESH, b"", response=False)
 
     def handle_notify(self, sender: BleakGATTCharacteristic, data: bytearray):
         decrypted = self._decrypt_notify(data)
@@ -62,9 +64,12 @@ class TelinkSession:
     def _decrypt_notify(self, notify: bytes) -> bytes:
         return telink_aes_ivm_decrypt(self.session_key, make_ivs(self.mac, notify), notify, plain_header_len=PLAIN_HEADER_LEN_NOTIFY)
 
-    def _encrypt_command(self, command: int, payload: bytes) -> bytes:
+    def _encrypt_command(self, command: int, payload: bytes, mesh_address: int) -> bytes:
         assert len(payload) <= 10
         payload = pad_to_len(payload, 10)
+
+        if not mesh_address:
+            mesh_address = self.mesh_address
 
         sequence_number = self.sequence_number
         self.sequence_number += 1
@@ -75,8 +80,8 @@ class TelinkSession:
             (sequence_number >> 16) & 0xff,
             0,
             0,
-            self.mesh_address & 0xff,
-            (self.mesh_address >> 8) & 0xff,
+            mesh_address & 0xff,
+            (mesh_address >> 8) & 0xff,
             command | 0xc0,
             self.vendor_id & 0xff,
             (self.vendor_id >> 8) & 0xff,
@@ -84,5 +89,5 @@ class TelinkSession:
 
         return telink_aes_ivm_encrypt(self.session_key, make_ivm(sequence_number, self.mac), ble_data, plain_header_len=PLAIN_HEADER_LEN_COMMAND)
 
-    async def send_command(self, command: int, payload: bytes, response: bool):
-        await self.client.write_gatt_char(CHARACTERISTIC_COMMAND_UUID, data=self._encrypt_command(command, payload), response=response)
+    async def send_command(self, command: int, payload: bytes, response: bool, mesh_address: int = None):
+        await self.client.write_gatt_char(CHARACTERISTIC_COMMAND_UUID, data=self._encrypt_command(command=command, payload=payload, mesh_address=mesh_address), response=response)

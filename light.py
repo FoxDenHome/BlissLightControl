@@ -6,6 +6,7 @@ class Light:
     session: TelinkSession
 
     def __init__(self, session: TelinkSession):
+        super().__init__()
         self.session = session
 
     # 9a4af31e314300f0
@@ -14,18 +15,17 @@ class Light:
     async def _send_command(self, payload: bytes, response: bool = False):
         await self.session.send_command(command=COMMAND_LIGHT_CONTROL, payload=payload, response=response)
 
-    async def set_diy_overall(self, red: int, green: int, blue: int, speed: int, brightness: int, diy_id: int = 10, selected_effect: int = 0xFF, index: int = 0):
+    async def set_direct(self, red: int, green: int, blue: int, laser: int, motor: int, brightness: int, breathe: bool):
+        # All the ints are 0-255 (motor regulates the speed, others are brightness)
         await self._send_command(payload=bytes([
-            24,
-            diy_id,
-            1,
-            selected_effect,
-            index,
+            71,
             red,
             green,
             blue,
-            speed,
+            laser,
+            motor,
             brightness,
+            1 if breathe else 0,
         ]))
 
     async def set_onoff(self, on: bool):
@@ -36,10 +36,8 @@ class Light:
         ]))
 
     async def set_scene(self, scene: int):
-        if scene == 0:
-            await self.set_onoff(on=False)
-            return
         await self._send_command(payload=bytes([
-            17,
+            65,
             scene,
+            0,
         ]))
