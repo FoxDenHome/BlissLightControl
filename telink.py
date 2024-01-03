@@ -14,13 +14,15 @@ CHARACTERISTIC_PAIR_UUID = "00010203-0405-0607-0809-0a0b0c0d1914"
 CHARACTERISTIC_COMMAND_UUID = "00010203-0405-0607-0809-0a0b0c0d1912"
 CHARACTERISTIC_NOTIFY_UUID = "00010203-0405-0607-0809-0a0b0c0d1911"
 
+MESH_ADDRESS_UNKNOWN = -1
+
 class TelinkSession:
     session_key: bytes
     client: BleakClient
     mac: bytes
     sequence_number: int
     vendor_id: int = 0x0211
-    mesh_address: int = 65535
+    mesh_address: int = MESH_ADDRESS_UNKNOWN
 
     def __init__(self, session_key: bytes, client: BleakClient, mac: bytes):
         super().__init__()
@@ -34,7 +36,7 @@ class TelinkSession:
 
         await self.client.start_notify(CHARACTERISTIC_NOTIFY_UUID, lambda char, bytes: self.handle_notify(char, bytes)) # pyright: ignore[reportUnknownMemberType]
         await self.client.write_gatt_char(CHARACTERISTIC_NOTIFY_UUID, b"\x01", response=True)
-        await self.send_command(COMMAND_FIND_MESH, b"", response=False)
+        await self.send_command(COMMAND_FIND_MESH, b"", mesh_address=0xFFFF)
 
     def handle_notify(self, sender: BleakGATTCharacteristic, data: bytearray):
         decrypted = self._decrypt_notify(bytes(data))
@@ -47,8 +49,8 @@ class TelinkSession:
         notify_extra = decrypted[10:]
         print("NE", notify_extra.hex())
 
-    async def send_command(self, command: int, payload: bytes, response: bool):
-      await self.client.write_gatt_char(CHARACTERISTIC_COMMAND_UUID, data=self._encrypt_command(command=command, payload=payload), response=response)
+    async def send_command(self, command: int, payload: bytes, response: bool = False, mesh_address: int | None = None):
+      await self.client.write_gatt_char(CHARACTERISTIC_COMMAND_UUID, data=self._encrypt_command(command=command, payload=payload, mesh_address=mesh_address), response=response)
 
     def _decrypt_notify(self, notify: bytes) -> bytes:
         return telink_aes_ivm_decrypt(self.session_key, make_ivs(self.mac, notify), notify, plain_header_len=PLAIN_HEADER_LEN_NOTIFY)
@@ -60,6 +62,9 @@ class TelinkSession:
 
         if not mesh_address:
             mesh_address = self.mesh_address
+
+        if mesh_address == MESH_ADDRESS_UNKNOWN:
+            raise ValueError('mesh_address is unknown')
 
         sequence_number = self.sequence_number
         self.sequence_number += 1
@@ -80,7 +85,7 @@ class TelinkSession:
         return telink_aes_ivm_encrypt(self.session_key, make_ivm(sequence_number, self.mac), ble_data, plain_header_len=PLAIN_HEADER_LEN_COMMAND)
 
     def ready(self) -> bool:
-        return self.mesh_address != 65535
+        return self.mesh_address != MESH_ADDRESS_UNKNOWN
 
 
 
