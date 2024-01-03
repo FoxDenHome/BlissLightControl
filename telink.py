@@ -15,6 +15,7 @@ CHARACTERISTIC_COMMAND_UUID = "00010203-0405-0607-0809-0a0b0c0d1912"
 CHARACTERISTIC_NOTIFY_UUID = "00010203-0405-0607-0809-0a0b0c0d1911"
 
 MESH_ADDRESS_UNKNOWN = -1
+MESH_ADDRESS_BROADCAST = 0xFFFF
 
 class TelinkSession:
     session_key: bytes
@@ -36,7 +37,7 @@ class TelinkSession:
 
         await self.client.start_notify(CHARACTERISTIC_NOTIFY_UUID, lambda char, bytes: self.handle_notify(char, bytes)) # pyright: ignore[reportUnknownMemberType]
         await self.client.write_gatt_char(CHARACTERISTIC_NOTIFY_UUID, b"\x01", response=True)
-        await self.send_command(COMMAND_FIND_MESH, b"", mesh_address=0xFFFF)
+        await self.send_command(COMMAND_FIND_MESH, b"", mesh_address=MESH_ADDRESS_BROADCAST)
 
     def handle_notify(self, sender: BleakGATTCharacteristic, data: bytearray):
         decrypted = self._decrypt_notify(bytes(data))
