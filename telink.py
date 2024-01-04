@@ -37,7 +37,6 @@ class TelinkSession:
 
 
     async def enable_notify(self):
-
         await self.client.start_notify(CHARACTERISTIC_NOTIFY_UUID, lambda char, bytes: self.handle_notify(char, bytes)) # pyright: ignore[reportUnknownMemberType]
         await self.client.write_gatt_char(CHARACTERISTIC_NOTIFY_UUID, b"\x01", response=True)
         await self.send_command(COMMAND_FIND_MESH, b"", mesh_address=MESH_ADDRESS_BROADCAST)
