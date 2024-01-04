@@ -1,9 +1,10 @@
 from Cryptodome.Cipher import AES
-from config import MESH_NAME, MESH_PASSWORD
 
 BLE_GATT_OP_PAIR_ENC_REQ = b"\x0C"
 BLE_GATT_OP_PAIR_ENC_RSP = b"\x0D"
 BLE_GATT_OP_PAIR_ENC_FAIL = b"\x0E"
+
+MESH_PASSWORD = b"123\0\0\0\0\0\0\0\0\0\0\0\0\0" # always seems to be this
 
 sequence_number_counter = 0
 
@@ -74,17 +75,17 @@ def telink_aes_ivm_encrypt(key: bytes, ivm: bytes, payload: bytes, plain_header_
 def bytes_xor(a: bytes, b: bytes) -> bytes: # OK!
     return bytes([x ^ y for x, y in zip(a, b)])
 
-def create_login(login_random: bytes) -> bytes: # OK!
-    mesh_xor = bytes_xor(MESH_NAME, MESH_PASSWORD)
+def create_login(login_random: bytes, mesh_name: bytes) -> bytes: # OK!
+    mesh_xor = bytes_xor(pad_to_16(mesh_name), MESH_PASSWORD)
     padded_login_random = pad_to_16(login_random)
     encrypt = telink_aes_base_encrypt(padded_login_random, mesh_xor)
     return BLE_GATT_OP_PAIR_ENC_REQ + login_random + encrypt[8:16][::-1]
 
-def derive_session_key(login_random: bytes, login_response: bytes) -> bytes: # OK!
+def derive_session_key(login_random: bytes, mesh_name: bytes, login_response: bytes) -> bytes: # OK!
     assert login_response[0] == BLE_GATT_OP_PAIR_ENC_RSP[0]
     resp_data = login_response[1:]
 
-    mesh_xor = bytes_xor(MESH_NAME, MESH_PASSWORD)
+    mesh_xor = bytes_xor(pad_to_16(mesh_name), MESH_PASSWORD)
     padded_device_random = pad_to_16(resp_data[:8])
 
     encrypt_check = telink_aes_base_encrypt(padded_device_random, mesh_xor)
