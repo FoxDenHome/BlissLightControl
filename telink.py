@@ -92,6 +92,7 @@ class TelinkSession:
 
 
 TELINK_VENDOR_ID = 0x0211
+TELINK_MAC_PREFIX = bytes([0xA4, 0xC1, 0x38])
 
 @dataclass
 class TelinlkDevice:
@@ -121,18 +122,13 @@ class TelinkSessionConnector:
             packet_vendor_id = manufacturer_data[0] | (manufacturer_data[1] << 8)
             if packet_vendor_id != TELINK_VENDOR_ID:
                 continue
+            if manufacturer_data[0:5] != manufacturer_data[6:11]:
+                continue
             returned_devices.append(TelinlkDevice(
                 device=device,
                 name=adv.local_name,
                 vendor_id=packet_vendor_id,
-                mac=bytes([
-                    0xA4,
-                    0xC1,
-                    0x38,
-                    manufacturer_data[4],
-                    manufacturer_data[3],
-                    manufacturer_data[2],
-                ])
+                mac=TELINK_MAC_PREFIX + bytes(manufacturer_data[4:1:-1])
             ))
         return returned_devices
 

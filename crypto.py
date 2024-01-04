@@ -6,8 +6,6 @@ BLE_GATT_OP_PAIR_ENC_FAIL = b"\x0E"
 
 MESH_PASSWORD = b"123\0\0\0\0\0\0\0\0\0\0\0\0\0" # always seems to be this
 
-sequence_number_counter = 0
-
 def pad_to_len(data: bytes, pad_to: int) -> bytes:
     if len(data) > pad_to:
         raise ValueError('Data length exceeds padding length')
