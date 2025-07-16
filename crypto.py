@@ -86,11 +86,11 @@ def derive_session_key(login_random: bytes, mesh_name: bytes, login_response: by
     mesh_xor = bytes_xor(pad_to_16(mesh_name), MESH_PASSWORD)
     padded_device_random = pad_to_16(resp_data[:8])
 
-    encrypt_check = telink_aes_base_encrypt(padded_device_random, mesh_xor)
-    assert encrypt_check[8:16][::-1] == resp_data[8:16]
+    encrypt_check = telink_aes_att_encrypt(padded_device_random, mesh_xor)
+    assert encrypt_check[0:8] == resp_data[8:16]
 
     session_key_base = login_random + resp_data[:8]
-    return telink_aes_base_encrypt(mesh_xor, session_key_base)[::-1]
+    return telink_aes_att_encrypt(mesh_xor, session_key_base)
 
 def make_ivm(sequence_number: int, mac: bytes) -> bytes: # OK!
     return mac[::-1][:4] + bytes([1, sequence_number & 0xff, (sequence_number >> 8) & 0xff, (sequence_number >> 16) & 0xff])

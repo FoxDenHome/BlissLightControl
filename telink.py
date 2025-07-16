@@ -107,7 +107,7 @@ class TelinkSessionConnector:
 
     async def find(self, name: str | None = None) -> list[TelinlkDevice]:
         returned_devices: list[TelinlkDevice] = []
-        devices = await BleakScanner.discover(return_adv=True) # pyright: ignore[reportUnknownMemberType]
+        devices = await BleakScanner.discover(timeout=5, return_adv=True) # pyright: ignore[reportUnknownMemberType]
         for data in devices.values():
             device, adv = data
             if not adv.local_name:
@@ -121,8 +121,6 @@ class TelinkSessionConnector:
                 continue
             packet_vendor_id = manufacturer_data[0] | (manufacturer_data[1] << 8)
             if packet_vendor_id != TELINK_VENDOR_ID:
-                continue
-            if manufacturer_data[0:5] != manufacturer_data[6:11]:
                 continue
             returned_devices.append(TelinlkDevice(
                 device=device,

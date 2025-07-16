@@ -1,1 +1,1 @@
-LIGHT_NAME = "HMS56WVBEQN2FBG"
+LIGHT_NAME = "telink_mesh0"
