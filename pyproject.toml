@@ -1,0 +1,11 @@
+[project]
+name = "blisslightcontrol"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "bleak==1.0.1",
+    "pycryptodomex==3.23.0",
+    "pyright==1.1.403",
+]
